@@ -22,8 +22,16 @@ export const protect = async (req, res, next) => {
   }
 };
 
+export const superAdminOnly = (req, res, next) => {
+  if (req.user && req.user.role === "superadmin") {
+    next();
+  } else {
+    res.status(403).json({ message: "Super Admin access required" });
+  }
+};
+
 export const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  if (req.user && (req.user.role === "admin" || req.user.role === "superadmin")) {
     next();
   } else {
     res.status(403).json({ message: "Admin access required" });
@@ -31,7 +39,7 @@ export const adminOnly = (req, res, next) => {
 };
 
 export const staffOnly = (req, res, next) => {
-  if (req.user && (req.user.role === "staff" || req.user.role === "admin")) {
+  if (req.user && (req.user.role === "staff" || req.user.role === "admin" || req.user.role === "superadmin")) {
     next();
   } else {
     res.status(403).json({ message: "Staff access required" });

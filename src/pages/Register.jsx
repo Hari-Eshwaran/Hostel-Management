@@ -4,6 +4,14 @@ import { useTranslation } from 'react-i18next';
 import emailjs from '@emailjs/browser';
 import apiFetch, { setToken } from "@/lib/apiClient";
 
+const passwordRules = [
+  { label: "At least 8 characters", test: (p) => p.length >= 8 },
+  { label: "Uppercase letter (A-Z)", test: (p) => /[A-Z]/.test(p) },
+  { label: "Lowercase letter (a-z)", test: (p) => /[a-z]/.test(p) },
+  { label: "Number (0-9)", test: (p) => /\d/.test(p) },
+  { label: "Special character (!@#$%^&*)", test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
+];
+
 const Register = () => {
   const [formData, setFormData] = useState({
     name: "",
@@ -11,12 +19,14 @@ const Register = () => {
     number: "",
     password: "",
     confirmPassword: "",
+    organizationalCode: "",
     role: "tenant"
   });
   const [otp, setOtp] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPasswordRules, setShowPasswordRules] = useState(false);
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -78,11 +88,26 @@ const Register = () => {
       return;
     }
 
+    const failedRules = passwordRules.filter(r => !r.test(formData.password));
+    if (failedRules.length > 0) {
+      alert("Password does not meet all requirements:\n" + failedRules.map(r => "- " + r.label).join("\n"));
+      return;
+    }
+
     setLoading(true);
     try {
+      const body = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.number,
+        password: formData.password,
+      };
+      if (formData.organizationalCode.trim()) {
+        body.organizationalCode = formData.organizationalCode.trim();
+      }
       const res = await apiFetch("/auth/register", {
         method: "POST",
-        body: { name: formData.name, email: formData.email, phone: formData.number, password: formData.password },
+        body,
       });
       if (res.token) setToken(res.token);
       alert("Account created successfully!");
@@ -175,17 +200,46 @@ const Register = () => {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Organizational Code <span className="text-muted-foreground text-xs">(Optional)</span></label>
+            <input
+              type="text"
+              name="organizationalCode"
+              value={formData.organizationalCode}
+              onChange={handleChange}
+              placeholder="Enter code provided by hostel owner (e.g., ORG-XXXXXX-XXX)"
+              className="w-full px-3 py-2 border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              disabled={isOtpSent}
+            />
+            <p className="text-xs text-muted-foreground mt-1">If you have an organizational code from your hostel, enter it to link your account.</p>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-foreground mb-2">{t('register.password')}</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
+              onFocus={() => setShowPasswordRules(true)}
+              onBlur={() => setShowPasswordRules(false)}
               placeholder={t('register.placeholders.password')}
               className="w-full px-3 py-2 border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
               required
               disabled={isOtpSent}
             />
+            {(showPasswordRules || formData.password) && (
+              <div className="mt-2 space-y-1">
+                {passwordRules.map((rule, idx) => {
+                  const passed = rule.test(formData.password);
+                  return (
+                    <div key={idx} className={`flex items-center gap-2 text-xs ${passed ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      <span>{passed ? '✓' : '○'}</span>
+                      <span>{rule.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>

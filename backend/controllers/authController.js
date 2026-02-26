@@ -8,13 +8,38 @@ const generateToken = (id) => {
 };
 
 export const register = async (req, res) => {
-  const { name, email, phone, password } = req.body;
+  const { name, email, phone, password, organizationalCode } = req.body;
   try {
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ message: "User already exists" });
+
+    // If organizational code provided, validate it belongs to a verified admin/property
+    let propertyId = null;
+    if (organizationalCode) {
+      const ownerUser = await User.findOne({ organizationalCode, role: { $in: ["admin", "superadmin"] } });
+      if (!ownerUser) {
+        // Also check Property model
+        const Property = (await import("../models/Property.js")).default;
+        const property = await Property.findOne({ organizationalCode });
+        if (!property) {
+          return res.status(400).json({ message: "Invalid organizational code" });
+        }
+        propertyId = property._id;
+      } else {
+        propertyId = ownerUser.propertyId;
+      }
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
-    const user = await User.create({ name, email, phone, password: hashed, role: "tenant" });
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password: hashed,
+      role: "tenant",
+      propertyId,
+    });
     res.status(201).json({
       id: user._id,
       name: user.name,
@@ -42,6 +67,8 @@ export const login = async (req, res) => {
       phone: user.phone,
       role: user.role,
       requiresOnboarding: user.role === 'tenant' && !user.tenantId,
+      verificationStatus: user.verificationStatus || 'unverified',
+      organizationalCode: user.organizationalCode || null,
       token: generateToken(user._id),
     });
   } catch (error) {
@@ -72,6 +99,11 @@ export const getProfile = async (req, res) => {
       role: user.role,
       tenantId: user.tenantId,
       profileImage: user.profileImage || null,
+      verificationStatus: user.verificationStatus || 'unverified',
+      organizationalCode: user.organizationalCode || null,
+      qrCode: user.qrCode || null,
+      emailVerified: user.emailVerified || false,
+      phoneVerified: user.phoneVerified || false,
       settings: user.settings || {
         notifications: {
           emailNotifications: {

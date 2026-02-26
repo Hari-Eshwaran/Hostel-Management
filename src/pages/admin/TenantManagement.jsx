@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Download, Eye, Edit, Trash2, X, MessageSquare } from 'lucide-react';
+import { Search, Filter, Plus, Download, Eye, Edit, Trash2, X, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import apiFetch from '@/lib/apiClient';
 import Pagination from '@/components/Pagination';
@@ -31,6 +31,13 @@ const TenantManagement = () => {
     aadharNumber: "",
     roomAssignment: "",
     moveInDate: "",
+    gender: "",
+    dateOfBirth: "",
+    occupation: "",
+    nativePlace: "",
+    bloodGroup: "",
+    medicalCondition: "",
+    expectedDuration: "",
     emergencyContactName: "",
     emergencyContactRelationship: "",
     emergencyContactPhone: "",
@@ -102,6 +109,13 @@ const TenantManagement = () => {
         aadharNumber: formData.aadharNumber,
         room: formData.roomAssignment, // This is now the room ID
         moveInDate: formData.moveInDate,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        occupation: formData.occupation,
+        nativePlace: formData.nativePlace,
+        bloodGroup: formData.bloodGroup,
+        medicalCondition: formData.medicalCondition,
+        expectedDuration: formData.expectedDuration,
         emergencyContactName: formData.emergencyContactName,
         emergencyContactRelationship: formData.emergencyContactRelationship,
         emergencyContactPhone: formData.emergencyContactPhone,
@@ -133,6 +147,13 @@ const TenantManagement = () => {
       aadharNumber: "",
       roomAssignment: "",
       moveInDate: "",
+      gender: "",
+      dateOfBirth: "",
+      occupation: "",
+      nativePlace: "",
+      bloodGroup: "",
+      medicalCondition: "",
+      expectedDuration: "",
       emergencyContactName: "",
       emergencyContactRelationship: "",
       emergencyContactPhone: "",
@@ -143,11 +164,51 @@ const TenantManagement = () => {
 
   const getStatusBadge = (status) => {
     const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
-    return status === "Active" ? `${baseClasses} bg-green-100 text-green-800` : `${baseClasses} bg-muted text-muted-foreground`;
+    if (status === "Active") return `${baseClasses} bg-green-100 text-green-800`;
+    if (status === "Pending") return `${baseClasses} bg-yellow-100 text-yellow-800`;
+    if (status === "Rejected") return `${baseClasses} bg-red-100 text-red-800`;
+    return `${baseClasses} bg-muted text-muted-foreground`;
   };
 
-  const getStatusText = (active) => {
-    return active ? t('tenantManagement.statusActive') : t('tenantManagement.statusInactive');
+  const getStatusText = (tenant) => {
+    if (tenant.approvalStatus === 'pending') return 'Pending Approval';
+    if (tenant.approvalStatus === 'rejected') return 'Rejected';
+    return tenant.active ? t('tenantManagement.statusActive') : t('tenantManagement.statusInactive');
+  };
+
+  const getStatusKey = (tenant) => {
+    if (tenant.approvalStatus === 'pending') return 'Pending';
+    if (tenant.approvalStatus === 'rejected') return 'Rejected';
+    return tenant.active ? 'Active' : 'Inactive';
+  };
+
+  const handleApproveTenant = async (tenant) => {
+    if (!window.confirm(`Approve ${tenant.firstName} ${tenant.lastName}?`)) return;
+    try {
+      await apiFetch(`/tenants/${tenant._id}/approve`, { method: 'PUT' });
+      alert('Tenant approved successfully!');
+      loadTenants();
+      loadRooms();
+    } catch (err) {
+      console.error('Error approving tenant:', err);
+      alert(err.message || 'Failed to approve tenant');
+    }
+  };
+
+  const handleRejectTenant = async (tenant) => {
+    const reason = window.prompt(`Enter rejection reason for ${tenant.firstName} ${tenant.lastName}:`);
+    if (reason === null) return;
+    try {
+      await apiFetch(`/tenants/${tenant._id}/reject`, {
+        method: 'PUT',
+        body: { reason: reason || 'No reason provided' }
+      });
+      alert('Tenant rejected.');
+      loadTenants();
+    } catch (err) {
+      console.error('Error rejecting tenant:', err);
+      alert(err.message || 'Failed to reject tenant');
+    }
   };
 
   const filteredTenants = tenants.filter(tenant => {
@@ -156,8 +217,10 @@ const TenantManagement = () => {
       tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tenant.room?.number || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === "all" ||
-      (filterStatus === "active" && tenant.active) ||
-      (filterStatus === "vacated" && !tenant.active);
+      (filterStatus === "active" && tenant.active && tenant.approvalStatus === 'approved') ||
+      (filterStatus === "pending" && tenant.approvalStatus === 'pending') ||
+      (filterStatus === "rejected" && tenant.approvalStatus === 'rejected') ||
+      (filterStatus === "vacated" && !tenant.active && tenant.approvalStatus !== 'pending' && tenant.approvalStatus !== 'rejected');
     return matchesSearch && matchesFilter;
   });
 
@@ -198,6 +261,13 @@ const TenantManagement = () => {
       aadharNumber: tenant.aadharNumber || "",
       roomAssignment: tenant.room?._id || "",
       moveInDate: tenant.moveInDate ? new Date(tenant.moveInDate).toISOString().split('T')[0] : "",
+      gender: tenant.gender || "",
+      dateOfBirth: tenant.dateOfBirth ? new Date(tenant.dateOfBirth).toISOString().split('T')[0] : "",
+      occupation: tenant.occupation || "",
+      nativePlace: tenant.nativePlace || "",
+      bloodGroup: tenant.bloodGroup || "",
+      medicalCondition: tenant.medicalCondition || "",
+      expectedDuration: tenant.expectedDuration || "",
       emergencyContactName: tenant.emergencyContactName || "",
       emergencyContactRelationship: tenant.emergencyContactRelationship || "",
       emergencyContactPhone: tenant.emergencyContactPhone || "",
@@ -217,6 +287,13 @@ const TenantManagement = () => {
         aadharNumber: formData.aadharNumber,
         room: formData.roomAssignment,
         moveInDate: formData.moveInDate,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        occupation: formData.occupation,
+        nativePlace: formData.nativePlace,
+        bloodGroup: formData.bloodGroup,
+        medicalCondition: formData.medicalCondition,
+        expectedDuration: formData.expectedDuration,
         emergencyContactName: formData.emergencyContactName,
         emergencyContactRelationship: formData.emergencyContactRelationship,
         emergencyContactPhone: formData.emergencyContactPhone,
@@ -302,6 +379,8 @@ const TenantManagement = () => {
           >
             <option value="all">{t('tenantManagement.filterAll')}</option>
             <option value="active">{t('tenantManagement.filterActive')}</option>
+            <option value="pending">Pending Approval</option>
+            <option value="rejected">Rejected</option>
             <option value="vacated">{t('tenantManagement.filterVacated')}</option>
           </select>
         </div>
@@ -337,7 +416,13 @@ const TenantManagement = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2 sm:mt-0">
-              <span className={getStatusBadge(tenant.active ? "Active" : "Inactive")}>{getStatusText(tenant.active)}</span>
+              <span className={getStatusBadge(getStatusKey(tenant))}>{getStatusText(tenant)}</span>
+              {tenant.approvalStatus === 'pending' && (
+                <>
+                  <button onClick={() => handleApproveTenant(tenant)} className="p-1 text-green-600 hover:text-green-800" title="Approve"><CheckCircle className="h-4 w-4" /></button>
+                  <button onClick={() => handleRejectTenant(tenant)} className="p-1 text-red-500 hover:text-red-700" title="Reject"><XCircle className="h-4 w-4" /></button>
+                </>
+              )}
               <button className="p-1 text-muted-foreground hover:text-blue-500"><Eye className="h-4 w-4" /></button>
               <button onClick={() => handleEditTenant(tenant)} className="p-1 text-muted-foreground hover:text-blue-500"><Edit className="h-4 w-4" /></button>
               <button onClick={() => handleDeleteTenant(tenant)} className="p-1 text-muted-foreground hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
@@ -470,6 +555,98 @@ const TenantManagement = () => {
                   />
                   {errors.moveInDate && <p className="text-red-500 text-xs mt-1">{errors.moveInDate}</p>}
                 </div>
+              </div>
+
+              {/* Personal Details */}
+              <h3 className="font-medium text-foreground mt-2">Personal Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-foreground font-medium">Gender</label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-foreground font-medium">Date of Birth</label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="text-foreground font-medium">Occupation</label>
+                  <input
+                    type="text"
+                    name="occupation"
+                    value={formData.occupation}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Student, Employee"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="text-foreground font-medium">Native Place</label>
+                  <input
+                    type="text"
+                    name="nativePlace"
+                    value={formData.nativePlace}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Chennai"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="text-foreground font-medium">Blood Group</label>
+                  <select
+                    name="bloodGroup"
+                    value={formData.bloodGroup}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
+                  >
+                    <option value="">Select</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-foreground font-medium">Expected Duration</label>
+                  <input
+                    type="text"
+                    name="expectedDuration"
+                    value={formData.expectedDuration}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 6 months"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-foreground font-medium">Medical Condition / Allergies</label>
+                <textarea
+                  name="medicalCondition"
+                  value={formData.medicalCondition}
+                  onChange={handleInputChange}
+                  placeholder="Any medical conditions or allergies..."
+                  rows="2"
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 bg-background text-foreground placeholder:text-muted-foreground"
+                />
               </div>
 
               {/* Emergency Contact - Optional */}

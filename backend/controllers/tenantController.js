@@ -64,7 +64,16 @@ export const addTenant = async (req, res) => {
       emergencyContactName,
       emergencyContactRelationship,
       emergencyContactPhone,
-      securityDeposit
+      securityDeposit,
+      // New fields from flow
+      dateOfBirth,
+      gender,
+      occupation,
+      nativePlace,
+      bloodGroup,
+      medicalCondition,
+      expectedDuration,
+      roomCategory,
     } = req.body;
 
     // Check room availability
@@ -85,7 +94,19 @@ export const addTenant = async (req, res) => {
       emergencyContactName,
       emergencyContactRelationship,
       emergencyContactPhone,
-      securityDeposit
+      securityDeposit,
+      dateOfBirth,
+      gender,
+      occupation,
+      nativePlace,
+      bloodGroup: bloodGroup || '',
+      medicalCondition,
+      expectedDuration,
+      roomCategory,
+      approvalStatus: 'approved', // Admin-added tenants are auto-approved
+      approvedBy: req.user.id,
+      approvalDate: new Date(),
+      active: true, // Admin-added tenants are immediately active
     });
 
     if (roomId) {
@@ -115,7 +136,20 @@ export const onboardTenant = async (req, res) => {
       emergencyContactName,
       emergencyContactRelationship,
       emergencyContactPhone,
-      securityDeposit
+      securityDeposit,
+      // New fields from flow
+      dateOfBirth,
+      gender,
+      occupation,
+      nativePlace,
+      bloodGroup,
+      medicalCondition,
+      expectedDuration,
+      termsAccepted,
+      identityProof,
+      photo,
+      digitalSignature,
+      roomCategory,
     } = req.body;
 
     // Check room availability
@@ -123,6 +157,11 @@ export const onboardTenant = async (req, res) => {
       const room = await Room.findById(roomId);
       if (!room) return res.status(404).json({ message: "Room not found" });
       if (room.occupancy >= room.capacity) return res.status(400).json({ message: "Room is fully occupied" });
+    }
+
+    // Require terms acceptance
+    if (!termsAccepted) {
+      return res.status(400).json({ message: "You must accept the terms and conditions" });
     }
 
     // Split name into first and last
@@ -141,21 +180,34 @@ export const onboardTenant = async (req, res) => {
       emergencyContactName,
       emergencyContactRelationship,
       emergencyContactPhone,
-      securityDeposit
+      securityDeposit,
+      dateOfBirth,
+      gender,
+      occupation,
+      nativePlace,
+      bloodGroup: bloodGroup || '',
+      medicalCondition,
+      expectedDuration,
+      termsAccepted,
+      termsAcceptedAt: termsAccepted ? new Date() : undefined,
+      identityProof,
+      photo,
+      digitalSignature,
+      roomCategory,
+      organizationalCode: user.propertyId ? undefined : undefined, // Will be set if applicable
+      approvalStatus: 'pending', // Tenant starts as pending until admin approves
+      active: false, // Not active until approved
     });
 
     // Update user with tenantId
     await User.findByIdAndUpdate(user._id, { tenantId: tenant._id });
 
-    if (roomId) {
-      const room = await Room.findByIdAndUpdate(roomId, { $inc: { occupancy: 1 } }, { new: true });
-      if (room && room.occupancy >= room.capacity) {
-        await Room.findByIdAndUpdate(roomId, { status: 'occupied' });
-      }
-    }
-
+    // Don't update room occupancy yet — wait for approval
     const populatedTenant = await Tenant.findById(tenant._id).populate("room");
-    res.status(201).json(populatedTenant);
+    res.status(201).json({
+      ...populatedTenant.toObject(),
+      message: "Registration submitted. Awaiting admin approval.",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -163,7 +215,7 @@ export const onboardTenant = async (req, res) => {
 
 export const updateTenant = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, aadharNumber, room, moveInDate, emergencyContactName, emergencyContactRelationship, emergencyContactPhone, securityDeposit, active } = req.body;
+    const { firstName, lastName, email, phone, aadharNumber, room, moveInDate, emergencyContactName, emergencyContactRelationship, emergencyContactPhone, securityDeposit, active, dateOfBirth, gender, occupation, nativePlace, bloodGroup, medicalCondition, expectedDuration, roomCategory } = req.body;
     const allowedFields = {};
     if (firstName !== undefined) allowedFields.firstName = firstName;
     if (lastName !== undefined) allowedFields.lastName = lastName;
@@ -177,10 +229,77 @@ export const updateTenant = async (req, res) => {
     if (emergencyContactPhone !== undefined) allowedFields.emergencyContactPhone = emergencyContactPhone;
     if (securityDeposit !== undefined) allowedFields.securityDeposit = securityDeposit;
     if (active !== undefined) allowedFields.active = active;
+    if (dateOfBirth !== undefined) allowedFields.dateOfBirth = dateOfBirth;
+    if (gender !== undefined) allowedFields.gender = gender;
+    if (occupation !== undefined) allowedFields.occupation = occupation;
+    if (nativePlace !== undefined) allowedFields.nativePlace = nativePlace;
+    if (bloodGroup !== undefined) allowedFields.bloodGroup = bloodGroup;
+    if (medicalCondition !== undefined) allowedFields.medicalCondition = medicalCondition;
+    if (expectedDuration !== undefined) allowedFields.expectedDuration = expectedDuration;
+    if (roomCategory !== undefined) allowedFields.roomCategory = roomCategory;
 
     const tenant = await Tenant.findByIdAndUpdate(req.params.id, allowedFields, { new: true, runValidators: true }).populate("room");
     if (!tenant) return res.status(404).json({ message: "Tenant not found" });
     res.json(tenant);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Approve a tenant registration (admin only)
+export const approveTenant = async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+    if (tenant.approvalStatus === 'approved') {
+      return res.status(400).json({ message: "Tenant is already approved" });
+    }
+
+    tenant.approvalStatus = 'approved';
+    tenant.approvedBy = req.user.id;
+    tenant.approvalDate = new Date();
+    tenant.active = true;
+    await tenant.save();
+
+    // Update room occupancy now that tenant is approved
+    if (tenant.room) {
+      const room = await Room.findByIdAndUpdate(tenant.room, { $inc: { occupancy: 1 } }, { new: true });
+      if (room && room.occupancy >= room.capacity) {
+        await Room.findByIdAndUpdate(tenant.room, { status: 'occupied' });
+      }
+    }
+
+    // Send SMS notification to tenant
+    try {
+      const { sendSMS } = await import("../utils/sendSMS.js");
+      if (tenant.phone) {
+        await sendSMS(tenant.phone, `Hello ${tenant.firstName}, your tenant registration has been approved! You can now log in to RootnSpace.`, 'tenant-approval');
+      }
+    } catch (smsErr) {
+      // SMS is best-effort, don't fail the approval
+    }
+
+    const populatedTenant = await Tenant.findById(tenant._id).populate("room");
+    res.json({ message: "Tenant approved successfully", tenant: populatedTenant });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Reject a tenant registration (admin only)
+export const rejectTenant = async (req, res) => {
+  try {
+    const { rejectionReason } = req.body;
+    const tenant = await Tenant.findById(req.params.id);
+    if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+
+    tenant.approvalStatus = 'rejected';
+    tenant.rejectionReason = rejectionReason || 'No reason provided';
+    tenant.active = false;
+    await tenant.save();
+
+    const populatedTenant = await Tenant.findById(tenant._id).populate("room");
+    res.json({ message: "Tenant rejected", tenant: populatedTenant });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -9,12 +9,26 @@ export const validate = (req, res, next) => {
   next();
 };
 
+// Strong password validation helper
+const strongPassword = body("password")
+  .isLength({ min: 8 })
+  .withMessage("Password must be at least 8 characters")
+  .matches(/[A-Z]/)
+  .withMessage("Password must contain at least one uppercase letter")
+  .matches(/[a-z]/)
+  .withMessage("Password must contain at least one lowercase letter")
+  .matches(/[0-9]/)
+  .withMessage("Password must contain at least one number")
+  .matches(/[!@#$%^&*(),.?":{}|<>]/)
+  .withMessage("Password must contain at least one special character");
+
 // Register validation
 export const registerRules = [
   body("name").trim().notEmpty().withMessage("Name is required").isLength({ min: 2, max: 100 }).withMessage("Name must be 2-100 characters"),
   body("email").trim().isEmail().withMessage("Valid email is required").normalizeEmail(),
   body("phone").trim().notEmpty().withMessage("Phone is required").matches(/^\d{10}$/).withMessage("Phone must be 10 digits"),
-  body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+  strongPassword,
+  body("organizationalCode").optional().trim().notEmpty().withMessage("Organizational code cannot be empty if provided"),
 ];
 
 // Login validation
@@ -65,5 +79,16 @@ export const forgotPasswordRules = [
 // Reset Password validation
 export const resetPasswordRules = [
   body("token").notEmpty().withMessage("Reset token is required"),
-  body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+  strongPassword,
+];
+
+// Tenant onboarding validation
+export const onboardTenantRules = [
+  body("aadharNumber").optional().matches(/^\d{12}$/).withMessage("Aadhaar must be 12 digits"),
+  body("room").notEmpty().withMessage("Room selection is required").isMongoId().withMessage("Invalid room ID"),
+  body("moveInDate").notEmpty().withMessage("Move-in date is required").isISO8601().withMessage("Invalid date format"),
+  body("securityDeposit").optional().isNumeric().withMessage("Security deposit must be a number"),
+  body("gender").optional().isIn(["male", "female", "other"]).withMessage("Invalid gender"),
+  body("termsAccepted").optional().isBoolean().withMessage("Terms acceptance must be boolean"),
+  body("bloodGroup").optional().isIn(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", ""]).withMessage("Invalid blood group"),
 ];
