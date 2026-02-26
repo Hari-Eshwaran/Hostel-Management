@@ -61,6 +61,9 @@ app.use("/api", apiLimiter);
 
 app.get("/api/test", (req, res) => res.json({ ok: true, time: new Date() }));
 
+// Health check endpoint for AWS ALB / target group
+app.get("/health", (req, res) => res.status(200).json({ status: "healthy", uptime: process.uptime() }));
+
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/tenants", tenantRoutes);
 app.use("/api/rooms", roomRoutes);
@@ -77,4 +80,4 @@ app.use("/api/reports", reportsRoutes);
 setupSwagger(app);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT}`));
