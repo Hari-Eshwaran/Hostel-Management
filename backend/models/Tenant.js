@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const tenantSchema = new mongoose.Schema(
   {
+    property: { type: mongoose.Schema.Types.ObjectId, ref: "Property" },
     firstName: { type: String, required: true },
     lastName: { type: String },
     email: { type: String, required: true, unique: true },
@@ -40,6 +41,7 @@ const tenantSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+tenantSchema.index({ property: 1 });
 tenantSchema.index({ active: 1 });
 tenantSchema.index({ room: 1 });
 tenantSchema.index({ email: 1 });

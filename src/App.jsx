@@ -13,6 +13,13 @@ import ExchangeForm from "./pages/ExchangeForm";
 import NotFound from "./pages/NotFound";
 import UserLayout from "./components/UserLayout";
 import AdminLayout from "./components/AdminLayout";
+import SuperAdminLayout from "./components/SuperAdminLayout";
+
+// Super Admin Pages
+import SuperAdminDashboard from "./pages/superadmin/SuperAdminDashboard";
+import HostelList from "./pages/superadmin/HostelList";
+import HostelDetail from "./pages/superadmin/HostelDetail";
+import AdminManagement from "./pages/superadmin/AdminManagement";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -49,7 +56,9 @@ const App = () => {
           const profile = await apiFetch('/auth/profile');
           if (profile && profile.role) {
             setIsAuthenticated(true);
-            setUserType(profile.role === 'admin' ? 'admin' : 'user');
+            if (profile.role === 'superadmin') setUserType('superadmin');
+            else if (profile.role === 'admin') setUserType('admin');
+            else setUserType('user');
           } else {
             // Invalid token/profile
             setToken(null);
@@ -105,6 +114,12 @@ const App = () => {
     );
   }
 
+  const getHomeRoute = () => {
+    if (userType === 'superadmin') return '/superadmin/dashboard';
+    if (userType === 'admin') return '/admin/dashboard';
+    return '/dashboard';
+  };
+
   return (
     <ThemeProvider>
       <BrowserRouter>
@@ -120,7 +135,7 @@ const App = () => {
                   setUserType={handleSetUserType}
                 />
               ) : (
-                <Navigate to={userType === "admin" ? "/admin/dashboard" : "/dashboard"} replace />
+                <Navigate to={getHomeRoute()} replace />
               )
             }
           />
@@ -138,7 +153,7 @@ const App = () => {
               !isAuthenticated ? (
                 <Register />
               ) : (
-                <Navigate to={userType === "admin" ? "/admin/dashboard" : "/dashboard"} replace />
+                <Navigate to={getHomeRoute()} replace />
               )
             }
           />
@@ -160,8 +175,8 @@ const App = () => {
             path="/dashboard"
             element={
               isAuthenticated ? (
-                userType === "admin" ? (
-                  <Navigate to="/admin/dashboard" replace />
+                userType === "admin" || userType === "superadmin" ? (
+                  <Navigate to={getHomeRoute()} replace />
                 ) : (
                   <UserLayout onLogout={handleLogout}>
                     <Dashboard userType={userType} />
@@ -249,6 +264,24 @@ const App = () => {
             }
           />
 
+          {/* SUPER ADMIN ROUTES */}
+          <Route
+            path="/superadmin"
+            element={
+              isAuthenticated && userType === "superadmin" ? (
+                <SuperAdminLayout onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          >
+            <Route index element={<Navigate to="/superadmin/dashboard" replace />} />
+            <Route path="dashboard" element={<SuperAdminDashboard />} />
+            <Route path="hostels" element={<HostelList />} />
+            <Route path="hostels/:id" element={<HostelDetail />} />
+            <Route path="admins" element={<AdminManagement />} />
+          </Route>
+
           {/* ADMIN ROUTES */}
           <Route
             path="/admin"
@@ -286,7 +319,7 @@ const App = () => {
             path="/" 
             element={
               isAuthenticated ? (
-                <Navigate to={userType === "admin" ? "/admin/dashboard" : "/dashboard"} replace />
+                <Navigate to={getHomeRoute()} replace />
               ) : (
                 <Navigate to="/login" replace />
               )

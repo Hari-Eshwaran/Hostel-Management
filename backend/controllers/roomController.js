@@ -1,9 +1,18 @@
 import Room from "../models/Room.js";
 
+// Helper: scope query to user's property (admin/staff see their hostel only, superadmin sees all)
+const scopeByProperty = (query, user) => {
+  if (user.role !== "superadmin" && user.propertyId) {
+    query.property = user.propertyId;
+  }
+  return query;
+};
+
 export const getRooms = async (req, res) => {
   try {
     const { search, status, type, page = 1, limit = 10 } = req.query;
     let query = {};
+    scopeByProperty(query, req.user);
 
     // Search functionality
     if (search) {
@@ -53,7 +62,8 @@ export const getRoom = async (req, res) => {
 export const addRoom = async (req, res) => {
   try {
     const { number, type, rent, capacity, status } = req.body;
-    const room = await Room.create({ number, type, rent, capacity, status });
+    const propertyId = req.user.propertyId || undefined;
+    const room = await Room.create({ property: propertyId, number, type, rent, capacity, status });
     res.status(201).json(room);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -91,16 +101,22 @@ export const deleteRoom = async (req, res) => {
 
 export const getRoomStats = async (req, res) => {
   try {
-    const totalRooms = await Room.countDocuments();
-    const availableRooms = await Room.countDocuments({ status: 'available' });
-    const occupiedRooms = await Room.countDocuments({ status: 'occupied' });
-    const maintenanceRooms = await Room.countDocuments({ status: 'maintenance' });
+    let filter = {};
+    scopeByProperty(filter, req.user);
 
+    const totalRooms = await Room.countDocuments(filter);
+    const availableRooms = await Room.countDocuments({ ...filter, status: 'available' });
+    const occupiedRooms = await Room.countDocuments({ ...filter, status: 'occupied' });
+    const maintenanceRooms = await Room.countDocuments({ ...filter, status: 'maintenance' });
+
+    const matchStage = Object.keys(filter).length ? [{ $match: filter }] : [];
     const roomsByType = await Room.aggregate([
+      ...matchStage,
       { $group: { _id: "$type", count: { $sum: 1 } } }
     ]);
 
     const totalOccupancy = await Room.aggregate([
+      ...matchStage,
       { $group: { _id: null, total: { $sum: "$occupancy" }, capacity: { $sum: "$capacity" } } }
     ]);
 

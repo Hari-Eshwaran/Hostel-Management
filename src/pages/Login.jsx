@@ -43,7 +43,15 @@ const Login = ({ setIsAuthenticated, setUserType }) => {
         if (res.token) {
           setToken(res.token);
         }
-        setUserType(activeTab);
+        // Determine userType from the server response role
+        const serverRole = res.role || activeTab;
+        if (serverRole === 'superadmin') {
+          setUserType('superadmin');
+        } else if (serverRole === 'admin') {
+          setUserType('admin');
+        } else {
+          setUserType('user');
+        }
         setIsAuthenticated(true);
 
         // Check if tenant requires onboarding

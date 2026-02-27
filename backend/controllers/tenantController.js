@@ -2,10 +2,19 @@ import Tenant from "../models/Tenant.js";
 import Room from "../models/Room.js";
 import User from "../models/User.js";
 
+// Helper: scope query to user's property (admin/staff see their hostel only, superadmin sees all)
+const scopeByProperty = (query, user) => {
+  if (user.role !== "superadmin" && user.propertyId) {
+    query.property = user.propertyId;
+  }
+  return query;
+};
+
 export const getTenants = async (req, res) => {
   try {
     const { search, status, page = 1, limit = 10 } = req.query;
     let query = {};
+    scopeByProperty(query, req.user);
 
     // Search functionality
     if (search) {
@@ -84,6 +93,7 @@ export const addTenant = async (req, res) => {
     }
 
     const tenant = await Tenant.create({
+      property: req.user.propertyId || undefined,
       firstName,
       lastName,
       email,
@@ -170,6 +180,7 @@ export const onboardTenant = async (req, res) => {
     const lastName = nameParts.slice(1).join(' ') || '';
 
     const tenant = await Tenant.create({
+      property: user.propertyId || undefined,
       firstName,
       lastName,
       email: user.email,
@@ -323,11 +334,16 @@ export const deleteTenant = async (req, res) => {
 
 export const getTenantStats = async (req, res) => {
   try {
-    const totalTenants = await Tenant.countDocuments();
-    const activeTenants = await Tenant.countDocuments({ active: true });
+    let filter = {};
+    scopeByProperty(filter, req.user);
+
+    const totalTenants = await Tenant.countDocuments(filter);
+    const activeTenants = await Tenant.countDocuments({ ...filter, active: true });
     const inactiveTenants = totalTenants - activeTenants;
 
+    const matchStage = Object.keys(filter).length ? [{ $match: filter }] : [];
     const tenantsByRoom = await Tenant.aggregate([
+      ...matchStage,
       { $match: { room: { $ne: null } } },
       { $group: { _id: "$room", count: { $sum: 1 } } }
     ]);

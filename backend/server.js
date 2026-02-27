@@ -16,6 +16,7 @@ import expenseRoutes from "./routes/expenseRoutes.js";
 import vacatingRequestRoutes from "./routes/vacatingRequestRoutes.js";
 import exchangeRequestRoutes from "./routes/exchangeRequestRoutes.js";
 import reportsRoutes from "./routes/reportsRoutes.js";
+import superAdminRoutes from "./routes/superAdminRoutes.js";
 import setupSwagger from './swagger.js';
 import { authLimiter, chatLimiter, smsLimiter, apiLimiter } from "./middleware/rateLimiter.js";
 
@@ -75,6 +76,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/vacating-requests", vacatingRequestRoutes);
 app.use("/api/exchange-requests", exchangeRequestRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/superadmin", superAdminRoutes);
 
 // Swagger UI
 setupSwagger(app);
