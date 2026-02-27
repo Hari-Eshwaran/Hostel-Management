@@ -42,3 +42,9 @@ if [ -n "$CF_DIST_ID" ]; then
 fi
 
 echo "🎉 Deployment complete!"
+# First edit .env.production with your EC2 backend URL:
+# VITE_API_BASE=https://api.yourdomain.com/api
+# OR: VITE_API_BASE=http://<EC2_PUBLIC_IP>:5000/api
+
+# Build and deploy
+./deploy-frontend.sh hostel-frontend-bucket

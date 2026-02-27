@@ -20,8 +20,8 @@ sudo npm install -g pm2
 
 echo "📂 Cloning repository..."
 cd /home/ec2-user || cd /home/ubuntu
-git clone https://github.com/YOUR_USERNAME/Hostel-Management-1.git app
-cd app/backend
+git clone https://github.com/Hari-Eshwaran/Hostel-Management.git app
+cd Hostel-Management/backend
 
 echo "📦 Installing backend dependencies..."
 npm install --production
