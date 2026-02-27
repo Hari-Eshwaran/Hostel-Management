@@ -25,3 +25,6 @@ Message: 🔔 REMINDER: Hi Alice Brown, your rent of ₹14000 for Sunrise Apartm
 2025-12-01T04:17:17.968Z - To: +919344786408, Type: manual, Status: sent, SID: SM64bbc474585a6633346d05af493960a0
 Message: heelloooo bhaiii
 
+2026-02-27T11:28:17.716Z - To: 6380456410, Type: tenant-approval, Status: failed, Error: Authenticate
+Message: Hello Jayamurugan, your tenant registration has been approved! You can now log in to RootnSpace.
+

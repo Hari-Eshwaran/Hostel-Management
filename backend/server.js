@@ -5,6 +5,7 @@ import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
+import seedDefaults from "./config/seedDefaults.js";
 import tenantRoutes from "./routes/tenantRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
@@ -37,7 +38,10 @@ for (const envVar of optionalEnvVars) {
   }
 }
 
-connectDB();
+connectDB().then(() => {
+  // Seed default superadmin & Thenam Hostel on startup
+  seedDefaults();
+});
 
 const app = express();
 app.use(helmet());

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, CheckCircle, XCircle, Trash2, Building2 } from 'lucide-react';
+import { Search, Filter, Eye, CheckCircle, XCircle, Trash2, Building2, Plus, Pencil, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiFetch from '@/lib/apiClient';
 import Pagination from '@/components/Pagination';
@@ -12,6 +12,11 @@ const HostelList = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingHostel, setEditingHostel] = useState(null);
+  const [formData, setFormData] = useState({ name: '', address: '' });
+  const [formLoading, setFormLoading] = useState(false);
   const navigate = useNavigate();
 
   const loadHostels = async () => {
@@ -38,6 +43,47 @@ const HostelList = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     loadHostels();
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.address) return alert('Name and address are required');
+    setFormLoading(true);
+    try {
+      await apiFetch('/superadmin/hostels', { method: 'POST', body: formData });
+      alert('Hostel created successfully!');
+      setShowCreateModal(false);
+      setFormData({ name: '', address: '' });
+      loadHostels();
+    } catch (err) {
+      alert(err.message || 'Failed to create hostel');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleEditOpen = (hostel) => {
+    setEditingHostel(hostel);
+    setFormData({ name: hostel.name, address: hostel.address });
+    setShowEditModal(true);
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.address) return alert('Name and address are required');
+    setFormLoading(true);
+    try {
+      await apiFetch(`/superadmin/hostels/${editingHostel._id}`, { method: 'PUT', body: formData });
+      alert('Hostel updated successfully!');
+      setShowEditModal(false);
+      setEditingHostel(null);
+      setFormData({ name: '', address: '' });
+      loadHostels();
+    } catch (err) {
+      alert(err.message || 'Failed to update hostel');
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   const handleVerify = async (id, action) => {
@@ -69,13 +115,58 @@ const HostelList = () => {
 
   const statusBadge = (status) => {
     const map = {
-      verified: 'bg-green-100 text-green-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      under_review: 'bg-blue-100 text-blue-800',
-      rejected: 'bg-red-100 text-red-800',
+      verified: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+      under_review: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     };
     return `px-2 py-1 rounded-full text-xs font-medium ${map[status] || 'bg-muted text-muted-foreground'}`;
   };
+
+  const ModalForm = ({ title, onSubmit, onClose }) => (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-xl shadow-lg border border-border w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <h2 className="text-lg font-bold text-foreground">{title}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Hostel Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g. Thenam Hostel"
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Address</label>
+            <textarea
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              placeholder="Full address..."
+              rows={3}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg">
+              Cancel
+            </button>
+            <button type="submit" disabled={formLoading} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {formLoading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-4 md:p-6">
@@ -84,6 +175,12 @@ const HostelList = () => {
           <h1 className="text-2xl font-bold text-foreground">Hostels</h1>
           <p className="text-muted-foreground">Manage all registered hostels across the platform.</p>
         </div>
+        <button
+          onClick={() => { setFormData({ name: '', address: '' }); setShowCreateModal(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Add Hostel
+        </button>
       </div>
 
       {/* Search & Filter */}
@@ -141,8 +238,11 @@ const HostelList = () => {
                 <p className="text-sm text-muted-foreground mb-1 truncate">{hostel.address}</p>
                 {hostel.owner && (
                   <p className="text-sm text-muted-foreground mb-3">
-                    Owner: <span className="text-foreground">{hostel.owner.name}</span> — {hostel.owner.email}
+                    Admin: <span className="text-foreground font-medium">{hostel.owner.name}</span> — {hostel.owner.email}
                   </p>
+                )}
+                {!hostel.owner && (
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3 font-medium">⚠ No admin assigned</p>
                 )}
                 {hostel.organizationalCode && (
                   <p className="text-xs text-muted-foreground font-mono mb-3">Code: {hostel.organizationalCode}</p>
@@ -172,18 +272,25 @@ const HostelList = () => {
                   >
                     <Eye className="h-3.5 w-3.5" /> View
                   </button>
+                  <button
+                    onClick={() => handleEditOpen(hostel)}
+                    className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
                   {hostel.verificationStatus === 'pending' && (
                     <>
                       <button
                         onClick={() => handleVerify(hostel._id, 'verify')}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg transition-colors"
                         title="Verify"
                       >
                         <CheckCircle className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleVerify(hostel._id, 'reject')}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors"
                         title="Reject"
                       >
                         <XCircle className="h-4 w-4" />
@@ -205,6 +312,16 @@ const HostelList = () => {
       )}
 
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <ModalForm title="Create New Hostel" onSubmit={handleCreate} onClose={() => setShowCreateModal(false)} />
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <ModalForm title="Edit Hostel" onSubmit={handleUpdate} onClose={() => { setShowEditModal(false); setEditingHostel(null); }} />
+      )}
     </div>
   );
 };

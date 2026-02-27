@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import User from './models/User.js';
 import Tenant from './models/Tenant.js';
@@ -9,6 +10,7 @@ import Ticket from './models/Ticket.js';
 import Expense from './models/Expense.js';
 import VacatingRequest from './models/VacatingRequest.js';
 import ExchangeRequest from './models/ExchangeRequest.js';
+import Property from './models/Property.js';
 
 // Load environment variables
 dotenv.config();
@@ -28,48 +30,81 @@ const populateMockData = async () => {
     await Expense.deleteMany({});
     await VacatingRequest.deleteMany({});
     await ExchangeRequest.deleteMany({});
+    await Property.deleteMany({});
 
     console.log('Cleared existing data');
 
-    // Create Users (3-5 of each role)
+    // Create SuperAdmin
+    const superAdminPassword = await bcrypt.hash(process.env.SUPERADMIN_PASSWORD || 'SuperAdmin@123', 10);
+    const superAdmin = await User.create({
+      name: 'Super Admin',
+      email: process.env.SUPERADMIN_EMAIL || 'superadmin@thenam.com',
+      phone: '9999999999',
+      password: superAdminPassword,
+      role: 'superadmin',
+      verificationStatus: 'verified',
+      verifiedAt: new Date(),
+    });
+    console.log('Created SuperAdmin:', superAdmin.email);
+
+    // Create default "Thenam Hostel" property
+    const orgCode = `ORG-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const thenamHostel = await Property.create({
+      name: 'Thenam Hostel',
+      address: 'Chennai, Tamil Nadu, India',
+      verificationStatus: 'verified',
+      verifiedAt: new Date(),
+      verifiedBy: superAdmin._id,
+      organizationalCode: orgCode,
+    });
+    console.log('Created default hostel: Thenam Hostel (Org Code:', orgCode, ')');
+
+    // Create Users (1 admin for the hostel + staff + tenants)
     const hashedPassword = await bcrypt.hash(process.env.MOCK_PASSWORD || 'MockP@ss2024!', 10);
 
+    const adminOrgCode = `ORG-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
     const users = [
-      // Admins
-      { name: 'Admin User 1', email: 'admin1@example.com', password: hashedPassword, role: 'admin', phone: '1234567890' },
-      { name: 'Admin User 2', email: 'admin2@example.com', password: hashedPassword, role: 'admin', phone: '1234567891' },
+      // Admin — assigned to Thenam Hostel (1 admin per hostel)
+      { name: 'Admin User 1', email: 'admin1@example.com', password: hashedPassword, role: 'admin', phone: '1234567890', propertyId: thenamHostel._id, verificationStatus: 'verified', verifiedAt: new Date(), organizationalCode: adminOrgCode },
 
-      // Staff
-      { name: 'Staff User 1', email: 'staff1@example.com', password: hashedPassword, role: 'staff', phone: '2234567890' },
-      { name: 'Staff User 2', email: 'staff2@example.com', password: hashedPassword, role: 'staff', phone: '2234567891' },
-      { name: 'Staff User 3', email: 'staff3@example.com', password: hashedPassword, role: 'staff', phone: '2234567892' },
+      // Staff — assigned to Thenam Hostel
+      { name: 'Staff User 1', email: 'staff1@example.com', password: hashedPassword, role: 'staff', phone: '2234567890', propertyId: thenamHostel._id },
+      { name: 'Staff User 2', email: 'staff2@example.com', password: hashedPassword, role: 'staff', phone: '2234567891', propertyId: thenamHostel._id },
+      { name: 'Staff User 3', email: 'staff3@example.com', password: hashedPassword, role: 'staff', phone: '2234567892', propertyId: thenamHostel._id },
 
-      // Tenants
-      { name: 'John Doe', email: 'john@example.com', password: hashedPassword, role: 'tenant', phone: '3234567890' },
-      { name: 'Jane Smith', email: 'jane@example.com', password: hashedPassword, role: 'tenant', phone: '3234567891' },
-      { name: 'Bob Johnson', email: 'bob@example.com', password: hashedPassword, role: 'tenant', phone: '3234567892' },
-      { name: 'Alice Brown', email: 'alice@example.com', password: hashedPassword, role: 'tenant', phone: '3234567893' },
-      { name: 'Charlie Wilson', email: 'charlie@example.com', password: hashedPassword, role: 'tenant', phone: '3234567894' },
+      // Tenants — assigned to Thenam Hostel
+      { name: 'John Doe', email: 'john@example.com', password: hashedPassword, role: 'tenant', phone: '3234567890', propertyId: thenamHostel._id },
+      { name: 'Jane Smith', email: 'jane@example.com', password: hashedPassword, role: 'tenant', phone: '3234567891', propertyId: thenamHostel._id },
+      { name: 'Bob Johnson', email: 'bob@example.com', password: hashedPassword, role: 'tenant', phone: '3234567892', propertyId: thenamHostel._id },
+      { name: 'Alice Brown', email: 'alice@example.com', password: hashedPassword, role: 'tenant', phone: '3234567893', propertyId: thenamHostel._id },
+      { name: 'Charlie Wilson', email: 'charlie@example.com', password: hashedPassword, role: 'tenant', phone: '3234567894', propertyId: thenamHostel._id },
     ];
 
     const createdUsers = await User.insertMany(users);
     console.log('Created users:', createdUsers.length);
 
-    // Create Rooms (5 rooms)
+    // Set hostel owner to the admin user
+    const adminUser = createdUsers.find(u => u.role === 'admin');
+    await Property.findByIdAndUpdate(thenamHostel._id, { owner: adminUser._id });
+    console.log('Set Thenam Hostel owner to:', adminUser.email);
+
+    // Create Rooms (5 rooms — all belong to Thenam Hostel)
     const rooms = [
-      { number: 'A-101', type: 'single', rent: 5000, capacity: 1, status: 'occupied' },
-      { number: 'A-102', type: 'single', rent: 5000, capacity: 1, status: 'occupied' },
-      { number: 'B-201', type: 'double', rent: 8000, capacity: 2, status: 'occupied' },
-      { number: 'B-202', type: 'double', rent: 8000, capacity: 2, status: 'available' },
-      { number: 'C-301', type: 'shared', rent: 3000, capacity: 4, status: 'occupied' },
+      { number: 'A-101', type: 'single', rent: 5000, capacity: 1, status: 'occupied', property: thenamHostel._id },
+      { number: 'A-102', type: 'single', rent: 5000, capacity: 1, status: 'occupied', property: thenamHostel._id },
+      { number: 'B-201', type: 'double', rent: 8000, capacity: 2, status: 'occupied', property: thenamHostel._id },
+      { number: 'B-202', type: 'double', rent: 8000, capacity: 2, status: 'available', property: thenamHostel._id },
+      { number: 'C-301', type: 'shared', rent: 3000, capacity: 4, status: 'occupied', property: thenamHostel._id },
     ];
 
     const createdRooms = await Room.insertMany(rooms);
     console.log('Created rooms:', createdRooms.length);
 
-    // Create Tenants (5 tenants)
+    // Create Tenants (5 tenants — all belong to Thenam Hostel)
     const tenants = [
       {
+        property: thenamHostel._id,
         firstName: 'John',
         lastName: 'Doe',
         email: 'john@example.com',
@@ -84,6 +119,7 @@ const populateMockData = async () => {
         active: true,
       },
       {
+        property: thenamHostel._id,
         firstName: 'Jane',
         lastName: 'Smith',
         email: 'jane@example.com',
@@ -98,6 +134,7 @@ const populateMockData = async () => {
         active: true,
       },
       {
+        property: thenamHostel._id,
         firstName: 'Bob',
         lastName: 'Johnson',
         email: 'bob@example.com',
@@ -112,6 +149,7 @@ const populateMockData = async () => {
         active: true,
       },
       {
+        property: thenamHostel._id,
         firstName: 'Alice',
         lastName: 'Brown',
         email: 'alice@example.com',
@@ -126,6 +164,7 @@ const populateMockData = async () => {
         active: false,
       },
       {
+        property: thenamHostel._id,
         firstName: 'Charlie',
         lastName: 'Wilson',
         email: 'charlie@example.com',
@@ -372,7 +411,9 @@ const populateMockData = async () => {
 
     console.log('\n=== Mock Data Population Complete ===');
     console.log('Summary:');
-    console.log(`- Users: ${createdUsers.length} (Admins: 2, Staff: 3, Tenants: 5)`);
+    console.log(`- SuperAdmin: 1 (superadmin@thenam.com)`);
+    console.log(`- Default Hostel: Thenam Hostel (Org Code: ${orgCode})`);
+    console.log(`- Users: ${createdUsers.length} (Admin: 1, Staff: 3, Tenants: 5)`);
     console.log(`- Rooms: ${createdRooms.length}`);
     console.log(`- Tenants: ${createdTenants.length}`);
     console.log(`- Payments: ${createdPayments.length}`);
@@ -381,7 +422,8 @@ const populateMockData = async () => {
     console.log(`- Vacating Requests: ${createdVacatingRequests.length}`);
     console.log(`- Exchange Requests: ${createdExchangeRequests.length}`);
 
-    console.log('\n=== Sample Login Credentials ===');
+    console.log('\n=== Login Credentials ===');
+    console.log('SuperAdmin: superadmin@thenam.com / SuperAdmin@123');
     console.log('Admin: admin1@example.com / <MOCK_PASSWORD env var or MockP@ss2024!>');
     console.log('Staff: staff1@example.com / <MOCK_PASSWORD env var or MockP@ss2024!>');
     console.log('Tenant: john@example.com / <MOCK_PASSWORD env var or MockP@ss2024!>');
